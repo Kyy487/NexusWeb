@@ -14,6 +14,17 @@ export type AuthUser = {
   status?: string;
 };
 
+export type UserItem = {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  role: string;
+  status?: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
 export type AuthResponse = {
   token: string;
   user: AuthUser;
@@ -101,6 +112,16 @@ export type PaymentItem = {
   payment_proof_url?: string | null;
   paid_at?: string | null;
   verified_by?: string | null;
+};
+
+export type FileItem = {
+  id: string;
+  order_id: string;
+  file_name: string;
+  file_url: string;
+  file_type?: string;
+  uploaded_by?: string;
+  created_at?: string;
 };
 
 export type DashboardStats = {

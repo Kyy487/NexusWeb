@@ -77,36 +77,31 @@ export function CustomerDashboardView() {
   const currentPayment = useProjectStore((state) => state.currentPayment);
   const requirements = useProjectStore((state) => state.requirements);
 
-  const stats = [
-    {
-      label: "Total Orders",
-      value: currentOrder ? "1" : "0",
-      note: currentOrder?.status ?? "No orders yet",
-      tone: statusTone(currentOrder?.status),
-    },
-    {
-      label: "Active Projects",
-      value:
-        currentOrder &&
-        !["COMPLETED", "CANCELLED"].includes(currentOrder.status)
-          ? "1"
-          : "0",
-      note: currentOrder?.status ?? "Idle",
-      tone: "info",
-    },
-    {
-      label: "Pending Payments",
-      value: currentPayment ? "0" : currentInvoice ? "1" : "0",
-      note: currentInvoice?.status ?? "Awaiting invoice",
-      tone: statusTone(currentInvoice?.status),
-    },
-    {
-      label: "Completed Projects",
-      value: currentOrder?.status === "COMPLETED" ? "1" : "0",
-      note: currentPayment?.payment_status ?? "In progress",
-      tone: statusTone(currentPayment?.payment_status),
-    },
-  ];
+const stats: {
+  label: string;
+  value: string;
+  note?: string;
+  tone?: "default" | "success" | "warning" | "danger" | "info";
+}[] = [
+  {
+    label: "Active Orders",
+    value: "0",
+    note: "Projects in progress",
+    tone: "info",
+  },
+  {
+    label: "Pending Payments",
+    value: "0",
+    note: "Awaiting confirmation",
+    tone: "warning",
+  },
+  {
+    label: "Completed Projects",
+    value: "0",
+    note: "Delivered successfully",
+    tone: "success",
+  },
+];
 
   return (
     <div className="space-y-8">

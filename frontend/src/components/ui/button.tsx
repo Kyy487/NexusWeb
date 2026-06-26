@@ -20,12 +20,17 @@ export function Button({ className, variant = "primary", size = "md", asChild, c
     size === "lg" && "h-12 px-6 text-base",
     className
   );
+  
+const child = children as React.ReactElement<any>;
+if (asChild && isValidElement(children)) {
+  const child = children as React.ReactElement<{
+    className?: string;
+  }>;
 
-  if (asChild && isValidElement(children)) {
-    return cloneElement(children, {
-      className: cn(classes, (children.props as { className?: string }).className),
-    });
-  }
+  return cloneElement(child, {
+    className: cn(classes, child.props.className),
+  });
+}
 
   return (
     <button className={classes} {...props}>
