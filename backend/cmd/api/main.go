@@ -20,21 +20,41 @@ import (
 	serviceRepository "nexusweb-market/backend/internal/modules/service/repository"
 	serviceService "nexusweb-market/backend/internal/modules/service/service"
 
+	packageHandler "nexusweb-market/backend/internal/modules/package/handler"
 	packageRepository "nexusweb-market/backend/internal/modules/package/repository"
 	packageService "nexusweb-market/backend/internal/modules/package/service"
-	packageHandler "nexusweb-market/backend/internal/modules/package/handler"
 
+	orderHandler "nexusweb-market/backend/internal/modules/order/handler"
 	orderRepository "nexusweb-market/backend/internal/modules/order/repository"
 	orderService "nexusweb-market/backend/internal/modules/order/service"
-	orderHandler "nexusweb-market/backend/internal/modules/order/handler"
 
+	requirementHandler "nexusweb-market/backend/internal/modules/orderrequirement/handler"
 	requirementRepository "nexusweb-market/backend/internal/modules/orderrequirement/repository"
 	requirementService "nexusweb-market/backend/internal/modules/orderrequirement/service"
-	requirementHandler "nexusweb-market/backend/internal/modules/orderrequirement/handler"
 
+	progressHandler "nexusweb-market/backend/internal/modules/orderprogress/handler"
 	progressRepository "nexusweb-market/backend/internal/modules/orderprogress/repository"
 	progressService "nexusweb-market/backend/internal/modules/orderprogress/service"
-	progressHandler "nexusweb-market/backend/internal/modules/orderprogress/handler"
+
+	invoiceHandler "nexusweb-market/backend/internal/modules/invoice/handler"
+	invoiceRepository "nexusweb-market/backend/internal/modules/invoice/repository"
+	invoiceService "nexusweb-market/backend/internal/modules/invoice/service"
+
+	paymentHandler "nexusweb-market/backend/internal/modules/payment/handler"
+	paymentRepository "nexusweb-market/backend/internal/modules/payment/repository"
+	paymentService "nexusweb-market/backend/internal/modules/payment/service"
+
+	dashboardHandler "nexusweb-market/backend/internal/modules/dashboard/handler"
+	dashboardRepository "nexusweb-market/backend/internal/modules/dashboard/repository"
+	dashboardService "nexusweb-market/backend/internal/modules/dashboard/service"
+
+	orderFileHandler "nexusweb-market/backend/internal/modules/orderfile/handler"
+	orderFileRepository "nexusweb-market/backend/internal/modules/orderfile/repository"
+	orderFileService "nexusweb-market/backend/internal/modules/orderfile/service"
+
+	activityLogHandler "nexusweb-market/backend/internal/modules/activitylog/handler"
+	activityLogRepository "nexusweb-market/backend/internal/modules/activitylog/repository"
+	activityLogService "nexusweb-market/backend/internal/modules/activitylog/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -48,7 +68,7 @@ func main() {
 	r := gin.Default()
 
 	authRepo := auth.NewRepository(db)
-	authService := auth.NewService(authRepo, cfg)
+	authService := auth.NewService(authRepo, cfg, nil)
 	authHandler := auth.NewHandler(authService)
 
 	userRepo := userRepository.NewUserRepository(db)
@@ -67,9 +87,13 @@ func main() {
 	packageSvc := packageService.NewPackageService(packageRepo)
 	packageHdl := packageHandler.NewPackageHandler(packageSvc)
 
+	activityLogRepo := activityLogRepository.NewActivityLogRepository(db)
+	activityLogSvc := activityLogService.NewActivityLogService(activityLogRepo)
+	activityLogHdl := activityLogHandler.NewActivityLogHandler(activityLogSvc)
+
 	orderRepo := orderRepository.NewOrderRepository(db)
 	orderSvc := orderService.NewOrderService(orderRepo)
-	orderHdl := orderHandler.NewOrderHandler(orderSvc)	
+	orderHdl := orderHandler.NewOrderHandler(orderSvc, activityLogSvc)
 
 	requirementRepo := requirementRepository.NewRequirementRepository(db)
 	requirementSvc := requirementService.NewRequirementService(requirementRepo)
@@ -78,6 +102,25 @@ func main() {
 	progressRepo := progressRepository.NewProgressRepository(db)
 	progressSvc := progressService.NewProgressService(progressRepo)
 	progressHdl := progressHandler.NewProgressHandler(progressSvc)
+
+	invoiceRepo := invoiceRepository.NewInvoiceRepository(db)
+	invoiceSvc := invoiceService.NewInvoiceService(invoiceRepo)
+	invoiceHdl := invoiceHandler.NewInvoiceHandler(invoiceSvc, activityLogSvc)
+
+	paymentRepo := paymentRepository.NewPaymentRepository(db)
+	paymentSvc := paymentService.NewPaymentService(paymentRepo)
+	paymentHdl := paymentHandler.NewPaymentHandler(paymentSvc, activityLogSvc)
+
+	dashboardRepo := dashboardRepository.NewDashboardRepository(db)
+	dashboardSvc := dashboardService.NewDashboardService(dashboardRepo)
+	dashboardHdl := dashboardHandler.NewDashboardHandler(dashboardSvc)
+
+	orderFileRepo := orderFileRepository.NewOrderFileRepository(db)
+	orderFileSvc := orderFileService.NewOrderFileService(orderFileRepo)
+	orderFileHdl := orderFileHandler.NewOrderFileHandler(orderFileSvc)
+
+	authService = auth.NewService(authRepo, cfg, activityLogSvc)
+	authHandler = auth.NewHandler(authService)
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
@@ -108,55 +151,90 @@ func main() {
 			users := protected.Group("/users")
 			{
 				users.GET("/me", userHdl.GetMe)
-				users.GET("", userHdl.GetAllUsers)
-				users.PATCH("/:id/status", userHdl.UpdateUserStatus)
+				users.GET("", middleware.AdminOnly(), userHdl.GetAllUsers)
+				users.PATCH("/:id/status", middleware.AdminOnly(), userHdl.UpdateUserStatus)
 			}
 			categories := protected.Group("/categories")
 			{
 				categories.GET("", categoryHdl.GetAll)
 				categories.GET("/:id", categoryHdl.GetByID)
-				categories.POST("", categoryHdl.Create)
-				categories.PUT("/:id", categoryHdl.Update)
-				categories.DELETE("/:id", categoryHdl.Delete)
+				categories.POST("", middleware.AdminOnly(), categoryHdl.Create)
+				categories.PUT("/:id", middleware.AdminOnly(), categoryHdl.Update)
+				categories.DELETE("/:id", middleware.AdminOnly(), categoryHdl.Delete)
 			}
 			services := protected.Group("/services")
 			{
 				services.GET("", serviceHdl.GetAll)
 				services.GET("/:id", serviceHdl.GetByID)
-				services.POST("", serviceHdl.Create)
-				services.PUT("/:id", serviceHdl.Update)
-				services.DELETE("/:id", serviceHdl.Delete)
+				services.POST("", middleware.AdminOnly(), serviceHdl.Create)
+				services.PUT("/:id", middleware.AdminOnly(), serviceHdl.Update)
+				services.DELETE("/:id", middleware.AdminOnly(), serviceHdl.Delete)
 			}
 			packages := protected.Group("/packages")
 			{
 				packages.GET("", packageHdl.GetAll)
 				packages.GET("/:id", packageHdl.GetByID)
-				packages.POST("", packageHdl.Create)
-				packages.PUT("/:id", packageHdl.Update)
-				packages.DELETE("/:id", packageHdl.Delete)
+				packages.POST("", middleware.AdminOnly(), packageHdl.Create)
+				packages.PUT("/:id", middleware.AdminOnly(), packageHdl.Update)
+				packages.DELETE("/:id", middleware.AdminOnly(), packageHdl.Delete)
 			}
 			orders := protected.Group("/orders")
 			{
-				orders.GET("", orderHdl.GetAll)
-				orders.GET("/:id", orderHdl.GetByID)
-				orders.POST("", orderHdl.Create)
-				orders.PATCH("/:id/status", orderHdl.UpdateStatus)
+				orders.GET("", middleware.AdminOnly(), orderHdl.GetAll)
+				orders.GET("/:id", middleware.AdminOnly(), orderHdl.GetByID)
+				orders.POST("", middleware.RequireRoles(middleware.RoleSuperAdmin, middleware.RoleAdmin, middleware.RoleCustomer), orderHdl.Create)
+				orders.PATCH("/:id/status", middleware.AdminOnly(), orderHdl.UpdateStatus)
 			}
 			orderRequirements := protected.Group("/order-requirements")
 			{
-				orderRequirements.GET("/order/:orderId", requirementHdl.GetByOrderID)
-				orderRequirements.POST("/order/:orderId", requirementHdl.Create)
-				orderRequirements.GET("/:id", requirementHdl.GetByID)
-				orderRequirements.PUT("/:id", requirementHdl.Update)
-				orderRequirements.DELETE("/:id", requirementHdl.Delete)
+				orderRequirements.GET("/order/:orderId", middleware.AdminOnly(), requirementHdl.GetByOrderID)
+				orderRequirements.POST("/order/:orderId", middleware.RequireRoles(middleware.RoleSuperAdmin, middleware.RoleAdmin, middleware.RoleCustomer), requirementHdl.Create)
+				orderRequirements.GET("/:id", middleware.AdminOnly(), requirementHdl.GetByID)
+				orderRequirements.PUT("/:id", middleware.AdminOnly(), requirementHdl.Update)
+				orderRequirements.DELETE("/:id", middleware.AdminOnly(), requirementHdl.Delete)
 			}
 			orderProgress := protected.Group("/order-progress")
 			{
-				orderProgress.GET("/order/:orderId", progressHdl.GetByOrderID)
-				orderProgress.POST("/order/:orderId", progressHdl.Create)
-				orderProgress.GET("/:id", progressHdl.GetByID)
-				orderProgress.PUT("/:id", progressHdl.Update)
-				orderProgress.DELETE("/:id", progressHdl.Delete)
+				orderProgress.GET("/order/:orderId", middleware.RequireRoles(middleware.RoleSuperAdmin, middleware.RoleAdmin, middleware.RoleCustomer), progressHdl.GetByOrderID)
+				orderProgress.POST("/order/:orderId", middleware.AdminOnly(), progressHdl.Create)
+				orderProgress.GET("/:id", middleware.RequireRoles(middleware.RoleSuperAdmin, middleware.RoleAdmin, middleware.RoleCustomer), progressHdl.GetByID)
+				orderProgress.PUT("/:id", middleware.AdminOnly(), progressHdl.Update)
+				orderProgress.DELETE("/:id", middleware.AdminOnly(), progressHdl.Delete)
+			}
+			invoices := protected.Group("/invoices")
+			{
+				invoices.GET("", middleware.AdminOnly(), invoiceHdl.GetAll)
+				invoices.GET("/order/:orderId", middleware.AdminOnly(), invoiceHdl.GetByOrderID)
+				invoices.GET("/:id", middleware.AdminOnly(), invoiceHdl.GetByID)
+				invoices.POST("", middleware.AdminOnly(), invoiceHdl.Create)
+				invoices.PATCH("/:id/status", middleware.AdminOnly(), invoiceHdl.UpdateStatus)
+			}
+			payments := protected.Group("/payments")
+			{
+				payments.GET("", middleware.AdminOnly(), paymentHdl.GetAll)
+				payments.GET("/invoice/:invoiceId", middleware.AdminOnly(), paymentHdl.GetByInvoiceID)
+				payments.GET("/:id/whatsapp", middleware.AdminOnly(), paymentHdl.GetWhatsAppLink)
+				payments.GET("/:id", middleware.AdminOnly(), paymentHdl.GetByID)
+				payments.POST("", middleware.AdminOnly(), paymentHdl.Create)
+				payments.PATCH("/:id/status", middleware.AdminOnly(), paymentHdl.UpdateStatus)
+			}
+			dashboard := protected.Group("/dashboard")
+			{
+				dashboard.GET("/stats", middleware.AdminOnly(), dashboardHdl.GetStats)
+			}
+			r.Static("/uploads", "./uploads")
+
+			orderFiles := protected.Group("/order-files")
+			{
+				orderFiles.POST("/upload", middleware.RequireRoles(middleware.RoleSuperAdmin, middleware.RoleAdmin, middleware.RoleCustomer), orderFileHdl.Upload)
+				orderFiles.GET("/order/:orderId", middleware.RequireRoles(middleware.RoleSuperAdmin, middleware.RoleAdmin, middleware.RoleCustomer), orderFileHdl.GetByOrderID)
+				orderFiles.DELETE("/:id", middleware.AdminOnly(), orderFileHdl.Delete)
+			}
+			activityLogs := protected.Group("/activity-logs")
+			{
+				activityLogs.GET("", middleware.AdminOnly(), activityLogHdl.GetAll)
+				activityLogs.GET("/user/:userId", middleware.AdminOnly(), activityLogHdl.GetByUserID)
+				activityLogs.POST("", middleware.AdminOnly(), activityLogHdl.Create)
 			}
 		}
 	}

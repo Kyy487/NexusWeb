@@ -1,8 +1,11 @@
 package handler
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 
+	activitylogService "nexusweb-market/backend/internal/modules/activitylog/service"
 	"nexusweb-market/backend/internal/modules/order/dto"
 	"nexusweb-market/backend/internal/modules/order/service"
 
@@ -11,10 +14,15 @@ import (
 
 type OrderHandler struct {
 	service service.OrderService
+	logger  activityLogger
 }
 
-func NewOrderHandler(service service.OrderService) *OrderHandler {
-	return &OrderHandler{service: service}
+type activityLogger interface {
+	Log(ctx context.Context, userID string, module string, action string, description string, ipAddress string) error
+}
+
+func NewOrderHandler(service service.OrderService, logger activitylogService.ActivityLogService) *OrderHandler {
+	return &OrderHandler{service: service, logger: logger}
 }
 
 func (h *OrderHandler) GetAll(c *gin.Context) {
@@ -77,6 +85,14 @@ func (h *OrderHandler) Create(c *gin.Context) {
 		return
 	}
 
+	if h.logger != nil {
+		userID := c.GetString("user_id")
+		if userID == "" {
+			userID = req.CustomerID
+		}
+		_ = h.logger.Log(c.Request.Context(), userID, "ORDER", "CREATE", fmt.Sprintf("Order %s created successfully.", order.OrderNumber), c.ClientIP())
+	}
+
 	c.JSON(http.StatusCreated, gin.H{
 		"success": true,
 		"message": "order created successfully",
@@ -106,6 +122,13 @@ func (h *OrderHandler) UpdateStatus(c *gin.Context) {
 			"error":   err.Error(),
 		})
 		return
+	}
+
+	if h.logger != nil {
+		userID := c.GetString("user_id")
+		if userID != "" {
+			_ = h.logger.Log(c.Request.Context(), userID, "ORDER", "UPDATE_STATUS", fmt.Sprintf("Order %s status updated to %s.", order.OrderNumber, req.Status), c.ClientIP())
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{

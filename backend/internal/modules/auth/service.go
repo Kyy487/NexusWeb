@@ -17,13 +17,18 @@ type Service interface {
 	Login(ctx context.Context, req LoginRequest) (*AuthResponse, error)
 }
 
-type service struct {
-	repo Repository
-	cfg  *config.Config
+type activityLogger interface {
+	Log(ctx context.Context, userID string, module string, action string, description string, ipAddress string) error
 }
 
-func NewService(repo Repository, cfg *config.Config) Service {
-	return &service{repo: repo, cfg: cfg}
+type service struct {
+	repo   Repository
+	cfg    *config.Config
+	logger activityLogger
+}
+
+func NewService(repo Repository, cfg *config.Config, logger activityLogger) Service {
+	return &service{repo: repo, cfg: cfg, logger: logger}
 }
 
 func (s *service) Register(ctx context.Context, req RegisterRequest) (*UserResponse, error) {
@@ -57,6 +62,10 @@ func (s *service) Register(ctx context.Context, req RegisterRequest) (*UserRespo
 
 	createdUser.RoleName = "CUSTOMER"
 
+	if s.logger != nil {
+		_ = s.logger.Log(ctx, createdUser.ID, "AUTH", "REGISTER", "User registered successfully", "")
+	}
+
 	return &UserResponse{
 		ID:     createdUser.ID,
 		Name:   createdUser.Name,
@@ -88,6 +97,10 @@ func (s *service) Login(ctx context.Context, req LoginRequest) (*AuthResponse, e
 	token, err := s.generateToken(user)
 	if err != nil {
 		return nil, err
+	}
+
+	if s.logger != nil {
+		_ = s.logger.Log(ctx, user.ID, "AUTH", "LOGIN", "User logged in successfully", "")
 	}
 
 	return &AuthResponse{
