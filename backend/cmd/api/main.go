@@ -2,11 +2,14 @@ package main
 
 import (
 	"log"
+	"time"
 
 	"nexusweb-market/backend/internal/config"
 	"nexusweb-market/backend/internal/database"
 	"nexusweb-market/backend/internal/middleware"
 	"nexusweb-market/backend/internal/modules/auth"
+
+	"github.com/gin-contrib/cors"
 
 	userHandler "nexusweb-market/backend/internal/modules/user/handler"
 	userRepository "nexusweb-market/backend/internal/modules/user/repository"
@@ -66,6 +69,15 @@ func main() {
 	defer db.Close()
 
 	r := gin.Default()
+
+	r.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000", "http://127.0.0.1:3001"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
+	}))
 
 	authRepo := auth.NewRepository(db)
 	authService := auth.NewService(authRepo, cfg, nil)
@@ -217,6 +229,12 @@ func main() {
 				payments.GET("/:id", middleware.AdminOnly(), paymentHdl.GetByID)
 				payments.POST("", middleware.AdminOnly(), paymentHdl.Create)
 				payments.PATCH("/:id/status", middleware.AdminOnly(), paymentHdl.UpdateStatus)
+			}
+			my := protected.Group("/my")
+			{
+				my.GET("/orders", orderHdl.GetByCustomerID)
+				my.GET("/invoices", invoiceHdl.GetByCustomerID)
+				my.GET("/payments", paymentHdl.GetByCustomerID)
 			}
 			dashboard := protected.Group("/dashboard")
 			{

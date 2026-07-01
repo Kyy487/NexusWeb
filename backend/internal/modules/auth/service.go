@@ -13,7 +13,7 @@ import (
 )
 
 type Service interface {
-	Register(ctx context.Context, req RegisterRequest) (*UserResponse, error)
+	Register(ctx context.Context, req RegisterRequest) (*AuthResponse, error)
 	Login(ctx context.Context, req LoginRequest) (*AuthResponse, error)
 }
 
@@ -31,7 +31,7 @@ func NewService(repo Repository, cfg *config.Config, logger activityLogger) Serv
 	return &service{repo: repo, cfg: cfg, logger: logger}
 }
 
-func (s *service) Register(ctx context.Context, req RegisterRequest) (*UserResponse, error) {
+func (s *service) Register(ctx context.Context, req RegisterRequest) (*AuthResponse, error) {
 	existingUser, err := s.repo.FindUserByEmail(ctx, req.Email)
 	if err == nil && existingUser != nil {
 		return nil, errors.New("email already registered")
@@ -66,13 +66,29 @@ func (s *service) Register(ctx context.Context, req RegisterRequest) (*UserRespo
 		_ = s.logger.Log(ctx, createdUser.ID, "AUTH", "REGISTER", "User registered successfully", "")
 	}
 
-	return &UserResponse{
-		ID:     createdUser.ID,
-		Name:   createdUser.Name,
-		Email:  createdUser.Email,
-		Phone:  createdUser.Phone,
-		Role:   createdUser.RoleName,
-		Status: createdUser.Status,
+	// Generate JWT token
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"user_id": createdUser.ID,
+		"email":   createdUser.Email,
+		"role":    "CUSTOMER",
+		"exp":     time.Now().Add(time.Hour * 24).Unix(),
+	})
+
+	tokenString, err := token.SignedString([]byte(s.cfg.JWTSecret))
+	if err != nil {
+		return nil, errors.New("failed to generate token")
+	}
+
+	return &AuthResponse{
+		Token: tokenString,
+		User: UserResponse{
+			ID:     createdUser.ID,
+			Name:   createdUser.Name,
+			Email:  createdUser.Email,
+			Phone:  createdUser.Phone,
+			Role:   "CUSTOMER",
+			Status: createdUser.Status,
+		},
 	}, nil
 }
 

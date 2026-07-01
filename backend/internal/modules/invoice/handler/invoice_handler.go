@@ -83,6 +83,33 @@ func (h *InvoiceHandler) GetByOrderID(c *gin.Context) {
 	})
 }
 
+func (h *InvoiceHandler) GetByCustomerID(c *gin.Context) {
+	customerID := c.GetString("user_id")
+	if customerID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"message": "user not authenticated",
+		})
+		return
+	}
+
+	invoices, err := h.service.GetByCustomerID(c.Request.Context(), customerID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "failed to get invoices",
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "invoices retrieved successfully",
+		"data":    invoices,
+	})
+}
+
 func (h *InvoiceHandler) Create(c *gin.Context) {
 	var req dto.CreateInvoiceRequest
 

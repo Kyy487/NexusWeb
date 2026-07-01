@@ -15,6 +15,7 @@ type InvoiceService interface {
 	GetAll(ctx context.Context) ([]dto.InvoiceResponse, error)
 	GetByID(ctx context.Context, id string) (*dto.InvoiceResponse, error)
 	GetByOrderID(ctx context.Context, orderID string) (*dto.InvoiceResponse, error)
+	GetByCustomerID(ctx context.Context, customerID string) ([]dto.InvoiceResponse, error)
 	Create(ctx context.Context, req dto.CreateInvoiceRequest) (*dto.InvoiceResponse, error)
 	UpdateStatus(ctx context.Context, id string, req dto.UpdateInvoiceStatusRequest) (*dto.InvoiceResponse, error)
 }
@@ -67,6 +68,24 @@ func (s *invoiceService) GetByOrderID(ctx context.Context, orderID string) (*dto
 
 	response := toInvoiceResponse(*invoice)
 	return &response, nil
+}
+
+func (s *invoiceService) GetByCustomerID(ctx context.Context, customerID string) ([]dto.InvoiceResponse, error) {
+	if customerID == "" {
+		return nil, errors.New("customer id is required")
+	}
+
+	invoices, err := s.repo.FindByCustomerID(ctx, customerID)
+	if err != nil {
+		return nil, err
+	}
+
+	responses := make([]dto.InvoiceResponse, 0, len(invoices))
+	for _, invoice := range invoices {
+		responses = append(responses, toInvoiceResponse(invoice))
+	}
+
+	return responses, nil
 }
 
 func (s *invoiceService) Create(ctx context.Context, req dto.CreateInvoiceRequest) (*dto.InvoiceResponse, error) {

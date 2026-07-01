@@ -12,6 +12,7 @@ type InvoiceRepository interface {
 	FindAll(ctx context.Context) ([]model.Invoice, error)
 	FindByID(ctx context.Context, id string) (*model.Invoice, error)
 	FindByOrderID(ctx context.Context, orderID string) (*model.Invoice, error)
+	FindByCustomerID(ctx context.Context, customerID string) ([]model.Invoice, error)
 	Create(ctx context.Context, invoice *model.Invoice) error
 	UpdateStatus(ctx context.Context, id string, status string) error
 	GetOrderAmount(ctx context.Context, orderID string) (float64, error)
@@ -166,6 +167,62 @@ func (r *invoiceRepository) FindByOrderID(ctx context.Context, orderID string) (
 	}
 
 	return &invoice, nil
+}
+
+func (r *invoiceRepository) FindByCustomerID(ctx context.Context, customerID string) ([]model.Invoice, error) {
+	query := `
+		SELECT
+			i.id,
+			i.order_id,
+			so.order_number,
+			i.invoice_number,
+			i.subtotal,
+			i.discount,
+			i.tax,
+			i.total_amount,
+			i.status,
+			i.due_date,
+			i.created_at,
+			i.updated_at
+		FROM invoices i
+		JOIN service_orders so ON so.id = i.order_id
+		WHERE so.customer_id = $1
+		ORDER BY i.created_at DESC
+	`
+
+	rows, err := r.db.Query(ctx, query, customerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	invoices := []model.Invoice{}
+
+	for rows.Next() {
+		var invoice model.Invoice
+
+		err := rows.Scan(
+			&invoice.ID,
+			&invoice.OrderID,
+			&invoice.OrderNumber,
+			&invoice.InvoiceNumber,
+			&invoice.Subtotal,
+			&invoice.Discount,
+			&invoice.Tax,
+			&invoice.TotalAmount,
+			&invoice.Status,
+			&invoice.DueDate,
+			&invoice.CreatedAt,
+			&invoice.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		invoices = append(invoices, invoice)
+	}
+
+	return invoices, rows.Err()
 }
 
 func (r *invoiceRepository) Create(ctx context.Context, invoice *model.Invoice) error {

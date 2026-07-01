@@ -14,6 +14,7 @@ import (
 type OrderService interface {
 	GetAll(ctx context.Context) ([]dto.OrderResponse, error)
 	GetByID(ctx context.Context, id string) (*dto.OrderResponse, error)
+	GetByCustomerID(ctx context.Context, customerID string) ([]dto.OrderResponse, error)
 	Create(ctx context.Context, req dto.CreateOrderRequest) (*dto.OrderResponse, error)
 	UpdateStatus(ctx context.Context, id string, req dto.UpdateOrderStatusRequest) (*dto.OrderResponse, error)
 }
@@ -52,6 +53,24 @@ func (s *orderService) GetByID(ctx context.Context, id string) (*dto.OrderRespon
 
 	response := toOrderResponse(*order)
 	return &response, nil
+}
+
+func (s *orderService) GetByCustomerID(ctx context.Context, customerID string) ([]dto.OrderResponse, error) {
+	if customerID == "" {
+		return nil, errors.New("customer id is required")
+	}
+
+	orders, err := s.repo.FindByCustomerID(ctx, customerID)
+	if err != nil {
+		return nil, err
+	}
+
+	responses := make([]dto.OrderResponse, 0, len(orders))
+	for _, order := range orders {
+		responses = append(responses, toOrderResponse(order))
+	}
+
+	return responses, nil
 }
 
 func (s *orderService) Create(ctx context.Context, req dto.CreateOrderRequest) (*dto.OrderResponse, error) {

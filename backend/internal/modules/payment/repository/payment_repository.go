@@ -12,6 +12,7 @@ type PaymentRepository interface {
 	FindAll(ctx context.Context) ([]model.Payment, error)
 	FindByID(ctx context.Context, id string) (*model.Payment, error)
 	FindByInvoiceID(ctx context.Context, invoiceID string) ([]model.Payment, error)
+	FindByCustomerID(ctx context.Context, customerID string) ([]model.Payment, error)
 	Create(ctx context.Context, payment *model.Payment) error
 	UpdateStatus(ctx context.Context, id string, paymentStatus string, verifiedBy *string) error
 	GetWhatsAppData(ctx context.Context, paymentID string) (*model.Payment, error)
@@ -107,6 +108,50 @@ func (r *paymentRepository) FindByInvoiceID(ctx context.Context, invoiceID strin
 	`
 
 	rows, err := r.db.Query(ctx, query, invoiceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	payments := []model.Payment{}
+
+	for rows.Next() {
+		var payment model.Payment
+
+		err := rows.Scan(
+			&payment.ID,
+			&payment.InvoiceID,
+			&payment.Amount,
+			&payment.PaymentMethod,
+			&payment.PaymentStatus,
+			&payment.PaymentProofURL,
+			&payment.PaidAt,
+			&payment.VerifiedBy,
+			&payment.CreatedAt,
+			&payment.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		payments = append(payments, payment)
+	}
+
+	return payments, rows.Err()
+}
+
+func (r *paymentRepository) FindByCustomerID(ctx context.Context, customerID string) ([]model.Payment, error) {
+	query := `
+		SELECT p.id, p.invoice_id, p.amount, p.payment_method, p.payment_status,
+		       p.payment_proof_url, p.paid_at, p.verified_by, p.created_at, p.updated_at
+		FROM payments p
+		JOIN invoices i ON i.id = p.invoice_id
+		JOIN service_orders so ON so.id = i.order_id
+		WHERE so.customer_id = $1
+		ORDER BY p.created_at DESC
+	`
+
+	rows, err := r.db.Query(ctx, query, customerID)
 	if err != nil {
 		return nil, err
 	}
@@ -308,7 +353,7 @@ func (r *paymentRepository) UpdateInvoiceAndOrderAfterPayment(ctx context.Contex
 			AND description = 'Payment verified, invoice paid, order moved to IN_PROGRESS, and progress 10% created.'
 		)
 	`, verifiedBy)
-	
+
 	if err != nil {
 		return err
 	}

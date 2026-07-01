@@ -3,10 +3,10 @@ package service
 import (
 	"context"
 	"errors"
-	"time"
 	"fmt"
 	"net/url"
 	"os"
+	"time"
 
 	"nexusweb-market/backend/internal/modules/payment/dto"
 	"nexusweb-market/backend/internal/modules/payment/model"
@@ -17,6 +17,7 @@ type PaymentService interface {
 	GetAll(ctx context.Context) ([]dto.PaymentResponse, error)
 	GetByID(ctx context.Context, id string) (*dto.PaymentResponse, error)
 	GetByInvoiceID(ctx context.Context, invoiceID string) ([]dto.PaymentResponse, error)
+	GetByCustomerID(ctx context.Context, customerID string) ([]dto.PaymentResponse, error)
 	Create(ctx context.Context, req dto.CreatePaymentRequest) (*dto.PaymentResponse, error)
 	UpdateStatus(ctx context.Context, id string, req dto.UpdatePaymentStatusRequest) (*dto.PaymentResponse, error)
 	GetWhatsAppLink(ctx context.Context, paymentID string) (*dto.WhatsAppPaymentResponse, error)
@@ -64,6 +65,24 @@ func (s *paymentService) GetByInvoiceID(ctx context.Context, invoiceID string) (
 	}
 
 	payments, err := s.repo.FindByInvoiceID(ctx, invoiceID)
+	if err != nil {
+		return nil, err
+	}
+
+	responses := make([]dto.PaymentResponse, 0, len(payments))
+	for _, payment := range payments {
+		responses = append(responses, toPaymentResponse(payment))
+	}
+
+	return responses, nil
+}
+
+func (s *paymentService) GetByCustomerID(ctx context.Context, customerID string) ([]dto.PaymentResponse, error) {
+	if customerID == "" {
+		return nil, errors.New("customer id is required")
+	}
+
+	payments, err := s.repo.FindByCustomerID(ctx, customerID)
 	if err != nil {
 		return nil, err
 	}

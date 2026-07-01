@@ -63,6 +63,33 @@ func (h *OrderHandler) GetByID(c *gin.Context) {
 	})
 }
 
+func (h *OrderHandler) GetByCustomerID(c *gin.Context) {
+	customerID := c.GetString("user_id")
+	if customerID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"message": "user not authenticated",
+		})
+		return
+	}
+
+	orders, err := h.service.GetByCustomerID(c.Request.Context(), customerID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "failed to get orders",
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "orders retrieved successfully",
+		"data":    orders,
+	})
+}
+
 func (h *OrderHandler) Create(c *gin.Context) {
 	var req dto.CreateOrderRequest
 

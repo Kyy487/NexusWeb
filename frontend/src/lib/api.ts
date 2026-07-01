@@ -111,6 +111,11 @@ export const orderApi = {
       api.get("/orders")
     ),
 
+  myOrders: () =>
+    unwrap<OrderItem[]>(
+      api.get("/my/orders")
+    ),
+
   byId: (id: string) =>
     unwrap<OrderItem>(
       api.get(`/orders/${id}`)
@@ -159,6 +164,11 @@ export const invoiceApi = {
       api.get("/invoices")
     ),
 
+  myInvoices: () =>
+    unwrap<InvoiceItem[]>(
+      api.get("/my/invoices")
+    ),
+
   byOrderId: (orderId: string) =>
     unwrap<InvoiceItem>(
       api.get(`/invoices/order/${orderId}`)
@@ -189,6 +199,11 @@ export const paymentApi = {
   list: () =>
     unwrap<PaymentItem[]>(
       api.get("/payments")
+    ),
+
+  myPayments: () =>
+    unwrap<PaymentItem[]>(
+      api.get("/my/payments")
     ),
 
   byInvoiceId: (invoiceId: string) =>

@@ -72,36 +72,72 @@ function statusIndex(status?: string) {
 
 export function CustomerDashboardView() {
   const user = useAuthStore((state) => state.user);
+  const setCurrentOrder = useProjectStore((state) => state.setCurrentOrder);
   const currentOrder = useProjectStore((state) => state.currentOrder);
   const currentInvoice = useProjectStore((state) => state.currentInvoice);
   const currentPayment = useProjectStore((state) => state.currentPayment);
   const requirements = useProjectStore((state) => state.requirements);
 
-const stats: {
-  label: string;
-  value: string;
-  note?: string;
-  tone?: "default" | "success" | "warning" | "danger" | "info";
-}[] = [
-  {
-    label: "Active Orders",
-    value: "0",
-    note: "Projects in progress",
-    tone: "info",
-  },
-  {
-    label: "Pending Payments",
-    value: "0",
-    note: "Awaiting confirmation",
-    tone: "warning",
-  },
-  {
-    label: "Completed Projects",
-    value: "0",
-    note: "Delivered successfully",
-    tone: "success",
-  },
-];
+  // Fetch customer's orders, invoices, and payments
+  const { data: orders = [] } = useQuery({
+    queryKey: ["my-orders"],
+    queryFn: orderApi.myOrders,
+  });
+
+  const { data: invoices = [] } = useQuery({
+    queryKey: ["my-invoices"],
+    queryFn: invoiceApi.myInvoices,
+  });
+
+  const { data: payments = [] } = useQuery({
+    queryKey: ["my-payments"],
+    queryFn: paymentApi.myPayments,
+  });
+
+  // Calculate statistics from real data
+  const activeOrders = orders.filter(
+    (o) =>
+      ["PENDING", "APPROVED", "IN_PROGRESS", "REVISION"].includes(
+        o.status
+      )
+  ).length;
+
+  const pendingPayments = payments.filter(
+    (p) => p.payment_status === "PENDING"
+  ).length;
+
+  const completedProjects = orders.filter(
+    (o) => o.status === "COMPLETED"
+  ).length;
+
+  const stats: {
+    label: string;
+    value: string;
+    note?: string;
+    tone?: "default" | "success" | "warning" | "danger" | "info";
+  }[] = [
+    {
+      label: "Active Orders",
+      value: activeOrders.toString(),
+      note: "Projects in progress",
+      tone: "info",
+    },
+    {
+      label: "Pending Payments",
+      value: pendingPayments.toString(),
+      note: "Awaiting confirmation",
+      tone: "warning",
+    },
+    {
+      label: "Completed Projects",
+      value: completedProjects.toString(),
+      note: "Delivered successfully",
+      tone: "success",
+    },
+  ];
+
+  // Get the most recent order to display
+  const displayedOrder = currentOrder || orders[0];
 
   return (
     <div className="space-y-8">
@@ -116,35 +152,35 @@ const stats: {
           <CardHeader>
             <CardTitle className="text-lg">Recent Order</CardTitle>
             <CardDescription>
-              Stored from the latest successful project submission.
+              Your latest project from this session.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {currentOrder ? (
+            {displayedOrder ? (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-slate-500">
-                      {currentOrder.order_number}
+                      {displayedOrder.order_number}
                     </p>
                     <p className="text-xl font-semibold text-slate-950">
-                      {currentOrder.title}
+                      {displayedOrder.title}
                     </p>
                   </div>
-                  <Badge tone={statusTone(currentOrder.status)}>
+                  <Badge tone={statusTone(displayedOrder.status)}>
                     {" "}
-                    {currentOrder.status}
+                    {displayedOrder.status}
                   </Badge>
                 </div>
                 <p className="text-sm leading-6 text-slate-600">
-                  {currentOrder.description}
+                  {displayedOrder.description}
                 </p>
                 <div className="flex flex-wrap gap-3 text-sm text-slate-500">
-                  <span>{currentOrder.service_name}</span>
+                  <span>{displayedOrder.service_name}</span>
                   <span>•</span>
-                  <span>{currentOrder.package_name}</span>
+                  <span>{displayedOrder.package_name}</span>
                   <span>•</span>
-                  <span>{currency(currentOrder.total_price)}</span>
+                  <span>{currency(displayedOrder.total_price)}</span>
                 </div>
               </div>
             ) : (
@@ -174,7 +210,7 @@ const stats: {
             { title: "Completed", description: "Final delivery and closeout." },
           ]}
           currentIndex={statusIndex(
-            currentOrder?.status ??
+            displayedOrder?.status ??
               currentInvoice?.status ??
               currentPayment?.payment_status,
           )}
@@ -190,8 +226,8 @@ const stats: {
         <CardContent className="flex flex-wrap gap-3">
           {[
             ["/customer/orders", "Create Order"],
-            ["/customer/invoices", "View Invoice"],
-            ["/customer/payments", "Create Payment"],
+            ["/customer/invoices", "View Invoices"],
+            ["/customer/payments", "View Payments"],
             ["/customer/files", "Upload Files"],
           ].map(([href, label]) => (
             <Button key={href} asChild variant="outline">
@@ -202,7 +238,7 @@ const stats: {
       </Card>
       <DataTable
         title="Latest Requirements"
-        description="Persisted from the last successful requirement submission."
+        description="Requirements from your active project."
         columns={["Question", "Answer"]}
         rows={requirements.map((requirement) => ({
           id: requirement.id,
@@ -482,46 +518,79 @@ export function CustomerOrderDetailView({ orderId }: { orderId: string }) {
 }
 
 export function CustomerInvoicesView() {
-  const invoice = useProjectStore((state) => state.currentInvoice);
-  return invoice ? (
+  const { data: invoices = [] } = useQuery({
+    queryKey: ["my-invoices"],
+    queryFn: invoiceApi.myInvoices,
+  });
+
+  if (invoices.length === 0) {
+    return (
+      <div className="space-y-8">
+        <PageHeader
+          eyebrow="Invoices"
+          title="Your Invoices"
+          description="Track all your invoices and their payment status."
+        />
+        <EmptyState
+          title="No invoices yet"
+          description="Invoices will appear after your orders are approved and billed."
+        />
+      </div>
+    );
+  }
+
+  return (
     <div className="space-y-8">
       <PageHeader
         eyebrow="Invoices"
-        title={invoice.invoice_number}
-        description="Track billing status from the current session."
+        title="Your Invoices"
+        description="Track billing status for all your projects."
       />
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Invoice Overview</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm text-slate-600">
-          <p>
-            <span className="font-medium text-slate-900">Status:</span>{" "}
-            <Badge tone={statusTone(invoice.status)}>{invoice.status}</Badge>
-          </p>
-          <p>
-            <span className="font-medium text-slate-900">Due:</span>{" "}
-            {invoice.due_date ?? "-"}
-          </p>
-          <p>
-            <span className="font-medium text-slate-900">Subtotal:</span>{" "}
-            {currency(invoice.subtotal)}
-          </p>
-          <p>
-            <span className="font-medium text-slate-900">Total:</span>{" "}
-            {currency(invoice.total_amount)}
-          </p>
-          <Button asChild>
-            <a href="/customer/payments">Pay Invoice</a>
-          </Button>
-        </CardContent>
-      </Card>
+      <div className="space-y-4">
+        {invoices.map((invoice) => (
+          <Card key={invoice.id}>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-lg">
+                    {invoice.invoice_number}
+                  </CardTitle>
+                  <CardDescription>Order {invoice.order_number}</CardDescription>
+                </div>
+                <Badge tone={statusTone(invoice.status)}>
+                  {invoice.status}
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm text-slate-600">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <p className="font-medium text-slate-900">Subtotal:</p>
+                  <p>{currency(invoice.subtotal)}</p>
+                </div>
+                <div>
+                  <p className="font-medium text-slate-900">Total:</p>
+                  <p>{currency(invoice.total_amount)}</p>
+                </div>
+                <div>
+                  <p className="font-medium text-slate-900">Due Date:</p>
+                  <p>{invoice.due_date ?? "-"}</p>
+                </div>
+                <div>
+                  <p className="font-medium text-slate-900">Status:</p>
+                  <p>{invoice.status}</p>
+                </div>
+              </div>
+              {invoice.status === "UNPAID" && (
+                <Button asChild>
+                  <a href="/customer/payments">Pay Now</a>
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
     </div>
-  ) : (
-    <EmptyState
-      title="No invoice in this session"
-      description="The invoice will appear after the admin creates it for the active order."
-    />
   );
 }
 
@@ -551,6 +620,16 @@ export function CustomerPaymentsView() {
   const [file, setFile] = useState<File | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
+  const { data: payments = [], refetch: refetchPayments } = useQuery({
+    queryKey: ["my-payments"],
+    queryFn: paymentApi.myPayments,
+  });
+
+  const { data: invoices = [] } = useQuery({
+    queryKey: ["my-invoices"],
+    queryFn: invoiceApi.myInvoices,
+  });
+
   const submitPayment = useMutation({
     mutationFn: async () => {
       if (!order || !invoice || !user)
@@ -576,77 +655,105 @@ export function CustomerPaymentsView() {
     onSuccess: (payment) => {
       setCurrentPayment(payment);
       setMessage("Payment submitted successfully.");
+      setPaymentMethod("");
+      setFile(null);
+      refetchPayments();
     },
   });
-
-  if (!order || !invoice) {
-    return (
-      <EmptyState
-        title="Payment flow unavailable"
-        description="Create the order and invoice in the current session first."
-      />
-    );
-  }
 
   return (
     <div className="space-y-8">
       <PageHeader
         eyebrow="Payments"
-        title="Submit payment proof"
-        description="Upload proof and create the payment record using the existing backend endpoints."
+        title="Manage Your Payments"
+        description="Upload payment proof or view payment history."
       />
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Payment Status</CardTitle>
-          <CardDescription>Invoice: {invoice.invoice_number}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 lg:grid-cols-2">
-            <div>
-              <label className="mb-2 block text-sm font-medium text-slate-700">
-                Payment Method
-              </label>
-              <Input
-                value={paymentMethod}
-                onChange={(event) => setPaymentMethod(event.target.value)}
-                placeholder="Bank Transfer / QRIS"
-              />
+
+      {invoice && invoice.status === "UNPAID" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Submit New Payment</CardTitle>
+            <CardDescription>
+              Invoice: {invoice.invoice_number} - {currency(invoice.total_amount)}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  Payment Method
+                </label>
+                <Input
+                  value={paymentMethod}
+                  onChange={(event) => setPaymentMethod(event.target.value)}
+                  placeholder="Bank Transfer / QRIS"
+                />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  Upload Proof
+                </label>
+                <Input
+                  type="file"
+                  onChange={(event) =>
+                    setFile(event.target.files?.[0] ?? null)
+                  }
+                />
+              </div>
             </div>
-            <div>
-              <label className="mb-2 block text-sm font-medium text-slate-700">
-                Upload Proof
-              </label>
-              <Input
-                type="file"
-                onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-              />
-            </div>
-          </div>
-          <Button
-            onClick={() => submitPayment.mutate()}
-            disabled={submitPayment.isPending}
-          >
-            {submitPayment.isPending ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Upload className="mr-2 h-4 w-4" />
-            )}
-            Submit Payment
-          </Button>
-          {message ? (
-            <p className="text-sm text-emerald-600">{message}</p>
-          ) : null}
-        </CardContent>
-      </Card>
+            <Button
+              onClick={() => submitPayment.mutate()}
+              disabled={submitPayment.isPending}
+            >
+              {submitPayment.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Upload className="mr-2 h-4 w-4" />
+              )}
+              Submit Payment
+            </Button>
+            {message ? (
+              <p className="text-sm text-emerald-600">{message}</p>
+            ) : null}
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Payment History</CardTitle>
+          <CardDescription>
+            All payments for your projects
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <EmptyState
-            title="No prior payments in this session"
-            description="Submitted payment records will appear after the API call succeeds."
-          />
+          {payments.length === 0 ? (
+            <EmptyState
+              title="No payments yet"
+              description="Payment records will appear here after submission."
+            />
+          ) : (
+            <div className="space-y-4">
+              {payments.map((payment) => (
+                <div
+                  key={payment.id}
+                  className="flex items-center justify-between rounded-lg border border-slate-200 p-4"
+                >
+                  <div>
+                    <p className="font-medium text-slate-900">
+                      {currency(payment.amount)}
+                    </p>
+                    <p className="text-sm text-slate-500">
+                      {payment.payment_method ?? "-"}
+                    </p>
+                  </div>
+                  <Badge tone={statusTone(payment.payment_status)}>
+                    {payment.payment_status}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

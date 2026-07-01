@@ -11,6 +11,7 @@ import (
 type OrderRepository interface {
 	FindAll(ctx context.Context) ([]model.Order, error)
 	FindByID(ctx context.Context, id string) (*model.Order, error)
+	FindByCustomerID(ctx context.Context, customerID string) ([]model.Order, error)
 	Create(ctx context.Context, order *model.Order) error
 	UpdateStatus(ctx context.Context, id string, status string) error
 	GetPackagePrice(ctx context.Context, packageID string) (float64, error)
@@ -145,6 +146,74 @@ func (r *orderRepository) FindByID(ctx context.Context, id string) (*model.Order
 	}
 
 	return &order, nil
+}
+
+func (r *orderRepository) FindByCustomerID(ctx context.Context, customerID string) ([]model.Order, error) {
+	query := `
+		SELECT
+			so.id,
+			so.customer_id,
+			COALESCE(u.name, ''),
+			so.service_id,
+			s.name,
+			so.package_id,
+			sp.name,
+			so.order_number,
+			so.title,
+			COALESCE(so.description, ''),
+			so.deadline,
+			so.total_price,
+			so.status,
+			so.created_at,
+			so.updated_at,
+			so.completed_at,
+			so.cancelled_at
+		FROM service_orders so
+		JOIN users u ON u.id = so.customer_id
+		JOIN services s ON s.id = so.service_id
+		JOIN service_packages sp ON sp.id = so.package_id
+		WHERE so.customer_id = $1
+		ORDER BY so.created_at DESC
+	`
+
+	rows, err := r.db.Query(ctx, query, customerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var orders []model.Order
+
+	for rows.Next() {
+		var order model.Order
+
+		err := rows.Scan(
+			&order.ID,
+			&order.CustomerID,
+			&order.CustomerName,
+			&order.ServiceID,
+			&order.ServiceName,
+			&order.PackageID,
+			&order.PackageName,
+			&order.OrderNumber,
+			&order.Title,
+			&order.Description,
+			&order.Deadline,
+			&order.TotalPrice,
+			&order.Status,
+			&order.CreatedAt,
+			&order.UpdatedAt,
+			&order.CompletedAt,
+			&order.CancelledAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		orders = append(orders, order)
+	}
+
+	return orders, rows.Err()
 }
 
 func (r *orderRepository) Create(ctx context.Context, order *model.Order) error {

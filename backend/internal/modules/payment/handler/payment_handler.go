@@ -79,6 +79,33 @@ func (h *PaymentHandler) GetByInvoiceID(c *gin.Context) {
 	})
 }
 
+func (h *PaymentHandler) GetByCustomerID(c *gin.Context) {
+	customerID := c.GetString("user_id")
+	if customerID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"message": "user not authenticated",
+		})
+		return
+	}
+
+	payments, err := h.service.GetByCustomerID(c.Request.Context(), customerID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "failed to get payments",
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "payments retrieved successfully",
+		"data":    payments,
+	})
+}
+
 func (h *PaymentHandler) Create(c *gin.Context) {
 	var req dto.CreatePaymentRequest
 
