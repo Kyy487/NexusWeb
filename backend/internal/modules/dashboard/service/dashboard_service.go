@@ -9,6 +9,7 @@ import (
 
 type DashboardService interface {
 	GetStats(ctx context.Context) (*dto.DashboardStatsResponse, error)
+	GetCustomerStats(ctx context.Context, customerID string) (*dto.CustomerDashboardStats, error)
 }
 
 type dashboardService struct {
@@ -21,4 +22,8 @@ func NewDashboardService(repo repository.DashboardRepository) DashboardService {
 
 func (s *dashboardService) GetStats(ctx context.Context) (*dto.DashboardStatsResponse, error) {
 	return s.repo.GetStats(ctx)
+}
+
+func (s *dashboardService) GetCustomerStats(ctx context.Context, customerID string) (*dto.CustomerDashboardStats, error) {
+	return s.repo.GetCustomerStats(ctx, customerID)
 }

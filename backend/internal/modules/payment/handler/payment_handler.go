@@ -26,7 +26,10 @@ func NewPaymentHandler(service service.PaymentService, logger activitylogService
 }
 
 func (h *PaymentHandler) GetAll(c *gin.Context) {
-	payments, err := h.service.GetAll(c.Request.Context())
+	userID := c.GetString("user_id")
+	role := c.GetString("role")
+
+	payments, err := h.service.GetAll(c.Request.Context(), userID, role)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
@@ -44,11 +47,14 @@ func (h *PaymentHandler) GetAll(c *gin.Context) {
 }
 
 func (h *PaymentHandler) GetByID(c *gin.Context) {
-	payment, err := h.service.GetByID(c.Request.Context(), c.Param("id"))
+	userID := c.GetString("user_id")
+	role := c.GetString("role")
+
+	payment, err := h.service.GetByID(c.Request.Context(), c.Param("id"), userID, role)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"success": false,
-			"message": "payment not found",
+			"message": "payment not found or access forbidden",
 			"error":   err.Error(),
 		})
 		return

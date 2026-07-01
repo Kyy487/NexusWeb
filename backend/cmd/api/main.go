@@ -192,16 +192,16 @@ func main() {
 			}
 			orders := protected.Group("/orders")
 			{
-				orders.GET("", middleware.AdminOnly(), orderHdl.GetAll)
-				orders.GET("/:id", middleware.AdminOnly(), orderHdl.GetByID)
+				orders.GET("", middleware.AdminOrCustomer(), orderHdl.GetAll)
+				orders.GET("/:id", middleware.AdminOrCustomer(), orderHdl.GetByID)
 				orders.POST("", middleware.RequireRoles(middleware.RoleSuperAdmin, middleware.RoleAdmin, middleware.RoleCustomer), orderHdl.Create)
 				orders.PATCH("/:id/status", middleware.AdminOnly(), orderHdl.UpdateStatus)
 			}
 			orderRequirements := protected.Group("/order-requirements")
 			{
-				orderRequirements.GET("/order/:orderId", middleware.AdminOnly(), requirementHdl.GetByOrderID)
+				orderRequirements.GET("/order/:orderId", middleware.AdminOrCustomer(), requirementHdl.GetByOrderID)
 				orderRequirements.POST("/order/:orderId", middleware.RequireRoles(middleware.RoleSuperAdmin, middleware.RoleAdmin, middleware.RoleCustomer), requirementHdl.Create)
-				orderRequirements.GET("/:id", middleware.AdminOnly(), requirementHdl.GetByID)
+				orderRequirements.GET("/:id", middleware.AdminOrCustomer(), requirementHdl.GetByID)
 				orderRequirements.PUT("/:id", middleware.AdminOnly(), requirementHdl.Update)
 				orderRequirements.DELETE("/:id", middleware.AdminOnly(), requirementHdl.Delete)
 			}
@@ -215,30 +215,31 @@ func main() {
 			}
 			invoices := protected.Group("/invoices")
 			{
-				invoices.GET("", middleware.AdminOnly(), invoiceHdl.GetAll)
-				invoices.GET("/order/:orderId", middleware.AdminOnly(), invoiceHdl.GetByOrderID)
-				invoices.GET("/:id", middleware.AdminOnly(), invoiceHdl.GetByID)
+				invoices.GET("", middleware.AdminOrCustomer(), invoiceHdl.GetAll)
+				invoices.GET("/order/:orderId", middleware.AdminOrCustomer(), invoiceHdl.GetByOrderID)
+				invoices.GET("/:id", middleware.AdminOrCustomer(), invoiceHdl.GetByID)
 				invoices.POST("", middleware.AdminOnly(), invoiceHdl.Create)
 				invoices.PATCH("/:id/status", middleware.AdminOnly(), invoiceHdl.UpdateStatus)
 			}
 			payments := protected.Group("/payments")
 			{
-				payments.GET("", middleware.AdminOnly(), paymentHdl.GetAll)
-				payments.GET("/invoice/:invoiceId", middleware.AdminOnly(), paymentHdl.GetByInvoiceID)
-				payments.GET("/:id/whatsapp", middleware.AdminOnly(), paymentHdl.GetWhatsAppLink)
-				payments.GET("/:id", middleware.AdminOnly(), paymentHdl.GetByID)
-				payments.POST("", middleware.AdminOnly(), paymentHdl.Create)
+				payments.GET("", middleware.AdminOrCustomer(), paymentHdl.GetAll)
+				payments.GET("/invoice/:invoiceId", middleware.AdminOrCustomer(), paymentHdl.GetByInvoiceID)
+				payments.GET("/:id/whatsapp", middleware.AdminOrCustomer(), paymentHdl.GetWhatsAppLink)
+				payments.GET("/:id", middleware.AdminOrCustomer(), paymentHdl.GetByID)
+				payments.POST("", middleware.AdminOrCustomer(), paymentHdl.Create)
 				payments.PATCH("/:id/status", middleware.AdminOnly(), paymentHdl.UpdateStatus)
 			}
 			my := protected.Group("/my")
 			{
+				// Deprecated: Kept for backward compatibility
 				my.GET("/orders", orderHdl.GetByCustomerID)
 				my.GET("/invoices", invoiceHdl.GetByCustomerID)
 				my.GET("/payments", paymentHdl.GetByCustomerID)
 			}
 			dashboard := protected.Group("/dashboard")
 			{
-				dashboard.GET("/stats", middleware.AdminOnly(), dashboardHdl.GetStats)
+				dashboard.GET("/stats", middleware.AdminOrCustomer(), dashboardHdl.GetStats)
 			}
 			r.Static("/uploads", "./uploads")
 
@@ -250,7 +251,7 @@ func main() {
 			}
 			activityLogs := protected.Group("/activity-logs")
 			{
-				activityLogs.GET("", middleware.AdminOnly(), activityLogHdl.GetAll)
+				activityLogs.GET("", middleware.AdminOrCustomer(), activityLogHdl.GetAll)
 				activityLogs.GET("/user/:userId", middleware.AdminOnly(), activityLogHdl.GetByUserID)
 				activityLogs.POST("", middleware.AdminOnly(), activityLogHdl.Create)
 			}

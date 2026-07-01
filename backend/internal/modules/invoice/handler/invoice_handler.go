@@ -26,7 +26,10 @@ func NewInvoiceHandler(service service.InvoiceService, logger activitylogService
 }
 
 func (h *InvoiceHandler) GetAll(c *gin.Context) {
-	invoices, err := h.service.GetAll(c.Request.Context())
+	userID := c.GetString("user_id")
+	role := c.GetString("role")
+
+	invoices, err := h.service.GetAll(c.Request.Context(), userID, role)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
@@ -45,12 +48,14 @@ func (h *InvoiceHandler) GetAll(c *gin.Context) {
 
 func (h *InvoiceHandler) GetByID(c *gin.Context) {
 	id := c.Param("id")
+	userID := c.GetString("user_id")
+	role := c.GetString("role")
 
-	invoice, err := h.service.GetByID(c.Request.Context(), id)
+	invoice, err := h.service.GetByID(c.Request.Context(), id, userID, role)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"success": false,
-			"message": "invoice not found",
+			"message": "invoice not found or access forbidden",
 			"error":   err.Error(),
 		})
 		return
@@ -65,12 +70,14 @@ func (h *InvoiceHandler) GetByID(c *gin.Context) {
 
 func (h *InvoiceHandler) GetByOrderID(c *gin.Context) {
 	orderID := c.Param("orderId")
+	userID := c.GetString("user_id")
+	role := c.GetString("role")
 
-	invoice, err := h.service.GetByOrderID(c.Request.Context(), orderID)
+	invoice, err := h.service.GetByOrderID(c.Request.Context(), orderID, userID, role)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"success": false,
-			"message": "invoice not found",
+			"message": "invoice not found or access forbidden",
 			"error":   err.Error(),
 		})
 		return

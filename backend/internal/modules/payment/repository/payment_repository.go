@@ -17,6 +17,7 @@ type PaymentRepository interface {
 	UpdateStatus(ctx context.Context, id string, paymentStatus string, verifiedBy *string) error
 	GetWhatsAppData(ctx context.Context, paymentID string) (*model.Payment, error)
 	UpdateInvoiceAndOrderAfterPayment(ctx context.Context, paymentID string) error
+	GetCustomerIDByPaymentID(ctx context.Context, paymentID string) (string, error)
 }
 
 type paymentRepository struct {
@@ -359,4 +360,21 @@ func (r *paymentRepository) UpdateInvoiceAndOrderAfterPayment(ctx context.Contex
 	}
 
 	return tx.Commit(ctx)
+}
+
+func (r *paymentRepository) GetCustomerIDByPaymentID(ctx context.Context, paymentID string) (string, error) {
+	query := `
+		SELECT so.customer_id
+		FROM payments p
+		JOIN invoices i ON i.id = p.invoice_id
+		JOIN service_orders so ON so.id = i.order_id
+		WHERE p.id = $1::uuid
+		LIMIT 1
+	`
+	var customerID string
+	err := r.db.QueryRow(ctx, query, paymentID).Scan(&customerID)
+	if err != nil {
+		return "", err
+	}
+	return customerID, nil
 }

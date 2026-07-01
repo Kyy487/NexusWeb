@@ -12,8 +12,8 @@ import (
 )
 
 type OrderService interface {
-	GetAll(ctx context.Context) ([]dto.OrderResponse, error)
-	GetByID(ctx context.Context, id string) (*dto.OrderResponse, error)
+	GetAll(ctx context.Context, userID string, role string) ([]dto.OrderResponse, error)
+	GetByID(ctx context.Context, id string, userID string, role string) (*dto.OrderResponse, error)
 	GetByCustomerID(ctx context.Context, customerID string) ([]dto.OrderResponse, error)
 	Create(ctx context.Context, req dto.CreateOrderRequest) (*dto.OrderResponse, error)
 	UpdateStatus(ctx context.Context, id string, req dto.UpdateOrderStatusRequest) (*dto.OrderResponse, error)
@@ -27,8 +27,16 @@ func NewOrderService(repo repository.OrderRepository) OrderService {
 	return &orderService{repo: repo}
 }
 
-func (s *orderService) GetAll(ctx context.Context) ([]dto.OrderResponse, error) {
-	orders, err := s.repo.FindAll(ctx)
+func (s *orderService) GetAll(ctx context.Context, userID string, role string) ([]dto.OrderResponse, error) {
+	var orders []model.Order
+	var err error
+
+	if role == "CUSTOMER" {
+		orders, err = s.repo.FindByCustomerID(ctx, userID)
+	} else {
+		orders, err = s.repo.FindAll(ctx)
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -41,7 +49,7 @@ func (s *orderService) GetAll(ctx context.Context) ([]dto.OrderResponse, error) 
 	return responses, nil
 }
 
-func (s *orderService) GetByID(ctx context.Context, id string) (*dto.OrderResponse, error) {
+func (s *orderService) GetByID(ctx context.Context, id string, userID string, role string) (*dto.OrderResponse, error) {
 	if id == "" {
 		return nil, errors.New("order id is required")
 	}
@@ -49,6 +57,10 @@ func (s *orderService) GetByID(ctx context.Context, id string) (*dto.OrderRespon
 	order, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		return nil, err
+	}
+
+	if role == "CUSTOMER" && order.CustomerID != userID {
+		return nil, errors.New("you do not have permission to access this order")
 	}
 
 	response := toOrderResponse(*order)

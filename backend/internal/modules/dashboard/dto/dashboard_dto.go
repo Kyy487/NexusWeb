@@ -1,5 +1,6 @@
 package dto
 
+// DashboardStatsResponse is returned for admin users - global stats
 type DashboardStatsResponse struct {
 	TotalCustomers   int64   `json:"total_customers"`
 	TotalOrders      int64   `json:"total_orders"`
@@ -11,4 +12,14 @@ type DashboardStatsResponse struct {
 	PendingPayments  int64   `json:"pending_payments"`
 	PaidPayments     int64   `json:"paid_payments"`
 	TotalRevenue     float64 `json:"total_revenue"`
+}
+
+// CustomerDashboardStats is returned for authenticated customers
+type CustomerDashboardStats struct {
+	TotalOrders       int64   `json:"total_orders"`
+	ActiveProjects    int64   `json:"active_projects"`
+	CompletedProjects int64   `json:"completed_projects"`
+	PendingInvoices   int64   `json:"pending_invoices"`
+	TotalPayments     int64   `json:"total_payments"`
+	TotalSpent        float64 `json:"total_spent"`
 }

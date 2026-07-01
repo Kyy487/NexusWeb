@@ -14,8 +14,8 @@ import (
 )
 
 type PaymentService interface {
-	GetAll(ctx context.Context) ([]dto.PaymentResponse, error)
-	GetByID(ctx context.Context, id string) (*dto.PaymentResponse, error)
+	GetAll(ctx context.Context, userID string, role string) ([]dto.PaymentResponse, error)
+	GetByID(ctx context.Context, id string, userID string, role string) (*dto.PaymentResponse, error)
 	GetByInvoiceID(ctx context.Context, invoiceID string) ([]dto.PaymentResponse, error)
 	GetByCustomerID(ctx context.Context, customerID string) ([]dto.PaymentResponse, error)
 	Create(ctx context.Context, req dto.CreatePaymentRequest) (*dto.PaymentResponse, error)
@@ -31,8 +31,16 @@ func NewPaymentService(repo repository.PaymentRepository) PaymentService {
 	return &paymentService{repo: repo}
 }
 
-func (s *paymentService) GetAll(ctx context.Context) ([]dto.PaymentResponse, error) {
-	payments, err := s.repo.FindAll(ctx)
+func (s *paymentService) GetAll(ctx context.Context, userID string, role string) ([]dto.PaymentResponse, error) {
+	var payments []model.Payment
+	var err error
+
+	if role == "CUSTOMER" {
+		payments, err = s.repo.FindByCustomerID(ctx, userID)
+	} else {
+		payments, err = s.repo.FindAll(ctx)
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +53,7 @@ func (s *paymentService) GetAll(ctx context.Context) ([]dto.PaymentResponse, err
 	return responses, nil
 }
 
-func (s *paymentService) GetByID(ctx context.Context, id string) (*dto.PaymentResponse, error) {
+func (s *paymentService) GetByID(ctx context.Context, id string, userID string, role string) (*dto.PaymentResponse, error) {
 	if id == "" {
 		return nil, errors.New("payment id is required")
 	}
@@ -53,6 +61,13 @@ func (s *paymentService) GetByID(ctx context.Context, id string) (*dto.PaymentRe
 	payment, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		return nil, err
+	}
+
+	if role == "CUSTOMER" {
+		ownerID, err := s.repo.GetCustomerIDByPaymentID(ctx, id)
+		if err != nil || ownerID != userID {
+			return nil, errors.New("you do not have permission to access this payment")
+		}
 	}
 
 	response := toPaymentResponse(*payment)

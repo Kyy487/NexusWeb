@@ -51,7 +51,10 @@ func (h *ActivityLogHandler) Create(c *gin.Context) {
 }
 
 func (h *ActivityLogHandler) GetAll(c *gin.Context) {
-	logs, err := h.service.GetAll(c.Request.Context())
+	userID := c.GetString("user_id")
+	role := c.GetString("role")
+
+	logs, err := h.service.GetAll(c.Request.Context(), userID, role)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,

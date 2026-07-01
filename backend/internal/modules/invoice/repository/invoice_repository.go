@@ -16,6 +16,8 @@ type InvoiceRepository interface {
 	Create(ctx context.Context, invoice *model.Invoice) error
 	UpdateStatus(ctx context.Context, id string, status string) error
 	GetOrderAmount(ctx context.Context, orderID string) (float64, error)
+	GetCustomerID(ctx context.Context, id string) (string, error)
+	GetCustomerIDByOrderID(ctx context.Context, orderID string) (string, error)
 }
 
 type invoiceRepository struct {
@@ -287,4 +289,35 @@ func (r *invoiceRepository) GetOrderAmount(ctx context.Context, orderID string) 
 	}
 
 	return amount, nil
+}
+
+func (r *invoiceRepository) GetCustomerID(ctx context.Context, id string) (string, error) {
+	query := `
+		SELECT so.customer_id
+		FROM invoices i
+		JOIN service_orders so ON so.id = i.order_id
+		WHERE i.id = $1
+		LIMIT 1
+	`
+	var customerID string
+	err := r.db.QueryRow(ctx, query, id).Scan(&customerID)
+	if err != nil {
+		return "", err
+	}
+	return customerID, nil
+}
+
+func (r *invoiceRepository) GetCustomerIDByOrderID(ctx context.Context, orderID string) (string, error) {
+	query := `
+		SELECT customer_id
+		FROM service_orders
+		WHERE id = $1
+		LIMIT 1
+	`
+	var customerID string
+	err := r.db.QueryRow(ctx, query, orderID).Scan(&customerID)
+	if err != nil {
+		return "", err
+	}
+	return customerID, nil
 }

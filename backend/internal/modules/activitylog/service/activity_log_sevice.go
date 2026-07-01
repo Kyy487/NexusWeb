@@ -12,7 +12,7 @@ import (
 
 type ActivityLogService interface {
 	Create(ctx context.Context, req dto.CreateActivityLogRequest) (*dto.ActivityLogResponse, error)
-	GetAll(ctx context.Context) ([]dto.ActivityLogResponse, error)
+	GetAll(ctx context.Context, userID string, role string) ([]dto.ActivityLogResponse, error)
 	GetByUserID(ctx context.Context, userID string) ([]dto.ActivityLogResponse, error)
 	Log(ctx context.Context, userID string, module string, action string, description string, ipAddress string) error
 }
@@ -59,8 +59,16 @@ func (s *activityLogService) Create(ctx context.Context, req dto.CreateActivityL
 	return &response, nil
 }
 
-func (s *activityLogService) GetAll(ctx context.Context) ([]dto.ActivityLogResponse, error) {
-	logs, err := s.repo.FindAll(ctx)
+func (s *activityLogService) GetAll(ctx context.Context, userID string, role string) ([]dto.ActivityLogResponse, error) {
+	var logs []model.ActivityLog
+	var err error
+
+	if role == "CUSTOMER" {
+		logs, err = s.repo.FindByUserID(ctx, userID)
+	} else {
+		logs, err = s.repo.FindAll(ctx)
+	}
+
 	if err != nil {
 		return nil, err
 	}

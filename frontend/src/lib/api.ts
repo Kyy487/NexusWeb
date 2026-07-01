@@ -5,6 +5,7 @@ import type {
   ActivityLogItem,
   ApiEnvelope,
   AuthResponse,
+  CustomerDashboardStats,
   DashboardStats,
   FileItem,
   InvoiceItem,
@@ -12,6 +13,7 @@ import type {
   OrderItem,
   PackageItem,
   PaymentItem,
+  ProgressItem,
   RegisterPayload,
   RequirementItem,
   ServiceItem,
@@ -75,6 +77,11 @@ export const dashboardApi = {
       api.get("/dashboard/stats")
     ),
 
+  customerStats: () =>
+    unwrap<CustomerDashboardStats>(
+      api.get("/dashboard/stats")
+    ),
+
   activities: () =>
     unwrap<ActivityLogItem[]>(
       api.get("/activity-logs")
@@ -111,9 +118,10 @@ export const orderApi = {
       api.get("/orders")
     ),
 
+  // Deprecated: use list() — backend now filters by role automatically
   myOrders: () =>
     unwrap<OrderItem[]>(
-      api.get("/my/orders")
+      api.get("/orders")
     ),
 
   byId: (id: string) =>
@@ -164,9 +172,10 @@ export const invoiceApi = {
       api.get("/invoices")
     ),
 
+  // Deprecated: use list() — backend now filters by role automatically
   myInvoices: () =>
     unwrap<InvoiceItem[]>(
-      api.get("/my/invoices")
+      api.get("/invoices")
     ),
 
   byOrderId: (orderId: string) =>
@@ -201,9 +210,10 @@ export const paymentApi = {
       api.get("/payments")
     ),
 
+  // Deprecated: use list() — backend now filters by role automatically
   myPayments: () =>
     unwrap<PaymentItem[]>(
-      api.get("/my/payments")
+      api.get("/payments")
     ),
 
   byInvoiceId: (invoiceId: string) =>
@@ -269,5 +279,12 @@ export const meApi = {
   me: () =>
     unwrap<UserItem>(
       api.get("/users/me")
+    ),
+};
+
+export const progressApi = {
+  byOrderId: (orderId: string) =>
+    unwrap<ProgressItem[]>(
+      api.get(`/order-progress/order/${orderId}`)
     ),
 };

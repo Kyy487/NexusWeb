@@ -146,3 +146,23 @@ export type ActivityLogItem = {
   ip_address?: string | null;
   created_at: string;
 };
+
+export type CustomerDashboardStats = {
+  total_orders: number;
+  active_projects: number;
+  completed_projects: number;
+  pending_invoices: number;
+  total_payments: number;
+  total_spent: number;
+};
+
+export type ProgressItem = {
+  id: string;
+  order_id: string;
+  title: string;
+  description: string;
+  progress_percentage: number;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+};

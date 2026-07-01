@@ -26,7 +26,10 @@ func NewOrderHandler(service service.OrderService, logger activitylogService.Act
 }
 
 func (h *OrderHandler) GetAll(c *gin.Context) {
-	orders, err := h.service.GetAll(c.Request.Context())
+	userID := c.GetString("user_id")
+	role := c.GetString("role")
+
+	orders, err := h.service.GetAll(c.Request.Context(), userID, role)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
@@ -45,12 +48,14 @@ func (h *OrderHandler) GetAll(c *gin.Context) {
 
 func (h *OrderHandler) GetByID(c *gin.Context) {
 	id := c.Param("id")
+	userID := c.GetString("user_id")
+	role := c.GetString("role")
 
-	order, err := h.service.GetByID(c.Request.Context(), id)
+	order, err := h.service.GetByID(c.Request.Context(), id, userID, role)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"success": false,
-			"message": "order not found",
+			"message": "order not found or access forbidden",
 			"error":   err.Error(),
 		})
 		return

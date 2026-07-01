@@ -24,15 +24,17 @@ import { Timeline } from "@/components/dashboard/timeline";
 import { OrderForm, RequirementForm } from "@/components/forms/auth-forms";
 import {
   catalogApi,
+  dashboardApi,
   fileApi,
   invoiceApi,
   orderApi,
   paymentApi,
+  progressApi,
   requirementApi,
 } from "@/lib/api";
 import { useAuthStore } from "@/store/auth-store";
 import { useProjectStore } from "@/store/project-store";
-import type { InvoiceItem, OrderItem, PaymentItem } from "@/types/api";
+import type { ActivityLogItem, InvoiceItem, OrderItem, PaymentItem, ProgressItem } from "@/types/api";
 
 function currency(value?: number | null) {
   return new Intl.NumberFormat("id-ID", {
@@ -73,161 +75,306 @@ function statusIndex(status?: string) {
 export function CustomerDashboardView() {
   const user = useAuthStore((state) => state.user);
   const setCurrentOrder = useProjectStore((state) => state.setCurrentOrder);
-  const currentOrder = useProjectStore((state) => state.currentOrder);
-  const currentInvoice = useProjectStore((state) => state.currentInvoice);
-  const currentPayment = useProjectStore((state) => state.currentPayment);
-  const requirements = useProjectStore((state) => state.requirements);
 
-  // Fetch customer's orders, invoices, and payments
-  const { data: orders = [] } = useQuery({
+  // Fetch real data from APIs
+  const {
+    data: stats,
+    isLoading: statsLoading,
+    isError: statsError,
+    refetch: refetchStats,
+  } = useQuery({
+    queryKey: ["customer-stats"],
+    queryFn: dashboardApi.customerStats,
+  });
+
+  const {
+    data: orders = [],
+    isLoading: ordersLoading,
+    isError: ordersError,
+    refetch: refetchOrders,
+  } = useQuery({
     queryKey: ["my-orders"],
     queryFn: orderApi.myOrders,
   });
 
-  const { data: invoices = [] } = useQuery({
+  const {
+    data: invoices = [],
+    isLoading: invoicesLoading,
+  } = useQuery({
     queryKey: ["my-invoices"],
     queryFn: invoiceApi.myInvoices,
   });
 
-  const { data: payments = [] } = useQuery({
-    queryKey: ["my-payments"],
-    queryFn: paymentApi.myPayments,
+  const {
+    data: activities = [],
+    isLoading: activitiesLoading,
+  } = useQuery({
+    queryKey: ["my-activities"],
+    queryFn: dashboardApi.activities,
   });
 
-  // Calculate statistics from real data
-  const activeOrders = orders.filter(
-    (o) =>
-      ["PENDING", "APPROVED", "IN_PROGRESS", "REVISION"].includes(
-        o.status
-      )
-  ).length;
+  // Get the most recent order
+  const latestOrder = orders[0] ?? null;
 
-  const pendingPayments = payments.filter(
-    (p) => p.payment_status === "PENDING"
-  ).length;
+  // Get progress for latest order if any
+  const {
+    data: progress = [],
+    isLoading: progressLoading,
+  } = useQuery({
+    queryKey: ["order-progress", latestOrder?.id],
+    queryFn: () => progressApi.byOrderId(latestOrder!.id),
+    enabled: !!latestOrder?.id,
+  });
 
-  const completedProjects = orders.filter(
-    (o) => o.status === "COMPLETED"
-  ).length;
+  const statsCards = stats
+    ? [
+        {
+          label: "Total Orders",
+          value: stats.total_orders.toString(),
+          note: "All time",
+          tone: "info" as const,
+        },
+        {
+          label: "Active Projects",
+          value: stats.active_projects.toString(),
+          note: "In progress",
+          tone: "warning" as const,
+        },
+        {
+          label: "Pending Invoices",
+          value: stats.pending_invoices.toString(),
+          note: "Awaiting payment",
+          tone: "danger" as const,
+        },
+        {
+          label: "Completed",
+          value: stats.completed_projects.toString(),
+          note: "Delivered",
+          tone: "success" as const,
+        },
+      ]
+    : [];
 
-  const stats: {
-    label: string;
-    value: string;
-    note?: string;
-    tone?: "default" | "success" | "warning" | "danger" | "info";
-  }[] = [
-    {
-      label: "Active Orders",
-      value: activeOrders.toString(),
-      note: "Projects in progress",
-      tone: "info",
-    },
-    {
-      label: "Pending Payments",
-      value: pendingPayments.toString(),
-      note: "Awaiting confirmation",
-      tone: "warning",
-    },
-    {
-      label: "Completed Projects",
-      value: completedProjects.toString(),
-      note: "Delivered successfully",
-      tone: "success",
-    },
-  ];
-
-  // Get the most recent order to display
-  const displayedOrder = currentOrder || orders[0];
+  // Latest pending invoice
+  const pendingInvoice = invoices.find(
+    (i) => i.status === "UNPAID" || i.status === "OVERDUE"
+  );
 
   return (
     <div className="space-y-8">
       <PageHeader
         eyebrow="Customer Dashboard"
-        title={`Welcome${user?.name ? `, ${user.name}` : ""}`}
-        description="Track your project lifecycle from order submission to completion in one premium workspace."
+        title={`Welcome back${user?.name ? `, ${user.name}` : ""}!`}
+        description="Track your project lifecycle from order to completion in one unified workspace."
       />
-      <StatsGrid stats={stats} />
+
+      {/* Stats Grid */}
+      {statsLoading ? (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {[1, 2, 3, 4].map((n) => (
+            <Card key={n}>
+              <CardHeader className="pb-2">
+                <div className="h-4 w-24 animate-pulse rounded bg-slate-200" />
+                <div className="mt-2 h-8 w-16 animate-pulse rounded bg-slate-200" />
+              </CardHeader>
+              <CardContent>
+                <div className="h-5 w-20 animate-pulse rounded bg-slate-100" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : statsError ? (
+        <Card className="border-red-100 bg-red-50">
+          <CardContent className="flex items-center justify-between py-4">
+            <p className="text-sm text-red-700">Failed to load dashboard stats.</p>
+            <Button size="sm" variant="outline" onClick={() => refetchStats()}>
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <StatsGrid stats={statsCards} />
+      )}
+
+      {/* Pending Invoice Alert */}
+      {pendingInvoice && (
+        <Card className="border-amber-200 bg-amber-50">
+          <CardContent className="flex items-center justify-between py-4">
+            <div>
+              <p className="font-semibold text-amber-900">
+                Invoice Pending Payment
+              </p>
+              <p className="text-sm text-amber-700">
+                {pendingInvoice.invoice_number} —{" "}
+                {currency(pendingInvoice.total_amount)} due{" "}
+                {pendingInvoice.due_date ?? "soon"}
+              </p>
+            </div>
+            <Button asChild size="sm">
+              <a href="/customer/payments">Pay Now</a>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Recent Order + Timeline */}
       <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Recent Order</CardTitle>
+            <CardTitle className="text-lg">Latest Order</CardTitle>
             <CardDescription>
-              Your latest project from this session.
+              {ordersLoading
+                ? "Loading..."
+                : orders.length === 0
+                  ? "No orders yet"
+                  : `${orders.length} order${orders.length > 1 ? "s" : ""} total`}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {displayedOrder ? (
+            {ordersLoading ? (
+              <div className="space-y-2">
+                <div className="h-5 w-40 animate-pulse rounded bg-slate-200" />
+                <div className="h-4 w-64 animate-pulse rounded bg-slate-200" />
+                <div className="h-4 w-32 animate-pulse rounded bg-slate-100" />
+              </div>
+            ) : ordersError ? (
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-red-600">Failed to load orders.</p>
+                <Button size="sm" variant="outline" onClick={() => refetchOrders()}>
+                  Retry
+                </Button>
+              </div>
+            ) : latestOrder ? (
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
+                <div className="flex items-start justify-between">
                   <div>
                     <p className="text-sm text-slate-500">
-                      {displayedOrder.order_number}
+                      {latestOrder.order_number}
                     </p>
                     <p className="text-xl font-semibold text-slate-950">
-                      {displayedOrder.title}
+                      {latestOrder.title}
                     </p>
                   </div>
-                  <Badge tone={statusTone(displayedOrder.status)}>
-                    {" "}
-                    {displayedOrder.status}
+                  <Badge tone={statusTone(latestOrder.status)}>
+                    {latestOrder.status}
                   </Badge>
                 </div>
                 <p className="text-sm leading-6 text-slate-600">
-                  {displayedOrder.description}
+                  {latestOrder.description}
                 </p>
                 <div className="flex flex-wrap gap-3 text-sm text-slate-500">
-                  <span>{displayedOrder.service_name}</span>
+                  <span>{latestOrder.service_name}</span>
                   <span>•</span>
-                  <span>{displayedOrder.package_name}</span>
+                  <span>{latestOrder.package_name}</span>
                   <span>•</span>
-                  <span>{currency(displayedOrder.total_price)}</span>
+                  <span>{currency(latestOrder.total_price)}</span>
                 </div>
+                <Button
+                  asChild
+                  variant="outline"
+                  size="sm"
+                  className="mt-2"
+                >
+                  <a
+                    href={`/customer/orders/${latestOrder.id}`}
+                    onClick={() => setCurrentOrder(latestOrder)}
+                  >
+                    View Details
+                  </a>
+                </Button>
               </div>
             ) : (
               <EmptyState
-                title="No project yet"
-                description="Create your first order to populate the dashboard."
+                title="No orders yet"
+                description="Create your first order to get started."
               />
             )}
           </CardContent>
         </Card>
-        <Timeline
-          steps={[
-            {
-              title: "Requirement",
-              description: "Project brief is submitted.",
-            },
-            { title: "Invoice", description: "Admin creates the invoice." },
-            {
-              title: "Payment",
-              description: "Customer submits payment proof.",
-            },
-            {
-              title: "In Progress",
-              description: "Work starts after verification.",
-            },
-            { title: "Revision", description: "Feedback and iteration." },
-            { title: "Completed", description: "Final delivery and closeout." },
-          ]}
-          currentIndex={statusIndex(
-            displayedOrder?.status ??
-              currentInvoice?.status ??
-              currentPayment?.payment_status,
-          )}
-        />
+
+        {/* Project Progress Timeline */}
+        {latestOrder ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Project Progress</CardTitle>
+              <CardDescription>
+                Milestones for {latestOrder.order_number}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {progressLoading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map((n) => (
+                    <div key={n} className="flex gap-3">
+                      <div className="h-4 w-4 animate-pulse rounded-full bg-slate-200" />
+                      <div className="flex-1">
+                        <div className="h-4 w-32 animate-pulse rounded bg-slate-200" />
+                        <div className="mt-1 h-3 w-48 animate-pulse rounded bg-slate-100" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : progress.length > 0 ? (
+                <div className="space-y-4">
+                  {progress.map((p, i) => (
+                    <div key={p.id} className="flex gap-3">
+                      <div className="flex flex-col items-center">
+                        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">
+                          {p.progress_percentage}%
+                        </div>
+                        {i < progress.length - 1 && (
+                          <div className="mt-1 h-full w-px flex-1 bg-blue-100" />
+                        )}
+                      </div>
+                      <div className="pb-4">
+                        <p className="font-semibold text-slate-950">{p.title}</p>
+                        <p className="text-sm text-slate-600">{p.description}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <Timeline
+                  currentIndex={statusIndex(latestOrder.status)}
+                  steps={[
+                    { title: "Requirement", description: "Brief submitted" },
+                    { title: "Invoice", description: "Admin invoices" },
+                    { title: "Payment", description: "Payment proof" },
+                    { title: "In Progress", description: "Work started" },
+                    { title: "Revision", description: "Feedback cycle" },
+                    { title: "Completed", description: "Delivered" },
+                  ]}
+                />
+              )}
+            </CardContent>
+          </Card>
+        ) : (
+          <Timeline
+            currentIndex={0}
+            steps={[
+              { title: "Requirement", description: "Submit project brief" },
+              { title: "Invoice", description: "Admin creates invoice" },
+              { title: "Payment", description: "Upload payment proof" },
+              { title: "In Progress", description: "Work starts" },
+              { title: "Revision", description: "Feedback loop" },
+              { title: "Completed", description: "Final delivery" },
+            ]}
+          />
+        )}
       </div>
+
+      {/* Quick Actions */}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Quick Actions</CardTitle>
-          <CardDescription>
-            Jump into the main parts of the MVP flow.
-          </CardDescription>
+          <CardDescription>Jump into the main parts of your workflow.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-3">
           {[
-            ["/customer/orders", "Create Order"],
+            ["/customer/orders", "New Order"],
             ["/customer/invoices", "View Invoices"],
-            ["/customer/payments", "View Payments"],
+            ["/customer/payments", "Payments"],
+            ["/customer/projects", "Project Timeline"],
             ["/customer/files", "Upload Files"],
           ].map(([href, label]) => (
             <Button key={href} asChild variant="outline">
@@ -236,16 +383,55 @@ export function CustomerDashboardView() {
           ))}
         </CardContent>
       </Card>
-      <DataTable
-        title="Latest Requirements"
-        description="Requirements from your active project."
-        columns={["Question", "Answer"]}
-        rows={requirements.map((requirement) => ({
-          id: requirement.id,
-          Question: requirement.question,
-          Answer: requirement.answer,
-        }))}
-      />
+
+      {/* Recent Activity */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Recent Activity</CardTitle>
+          <CardDescription>Your latest actions on the platform.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {activitiesLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((n) => (
+                <div
+                  key={n}
+                  className="h-10 w-full animate-pulse rounded-lg bg-slate-100"
+                />
+              ))}
+            </div>
+          ) : activities.length === 0 ? (
+            <EmptyState
+              title="No recent activity"
+              description="Your actions will appear here as you use the platform."
+            />
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {activities.slice(0, 10).map((log) => (
+                <div
+                  key={log.id}
+                  className="flex items-start justify-between py-3"
+                >
+                  <div>
+                    <p className="text-sm font-medium text-slate-900">
+                      <span className="mr-2 inline-flex rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
+                        {log.module}
+                      </span>
+                      {log.action}
+                    </p>
+                    {log.description && (
+                      <p className="text-xs text-slate-500">{log.description}</p>
+                    )}
+                  </div>
+                  <time className="ml-4 shrink-0 text-xs text-slate-400">
+                    {new Date(log.created_at).toLocaleDateString("id-ID")}
+                  </time>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
